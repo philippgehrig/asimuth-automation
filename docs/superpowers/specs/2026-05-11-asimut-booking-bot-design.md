@@ -2,11 +2,11 @@
 
 ## Problem
 
-The Hochschule für Musik Freiburg uses Asimut (`hfm-freiburg.asimut.net`) for room booking. Rooms are bookable on a rolling 48-hour window, creating a race condition where students camp the app to grab slots the moment they open. The user's sister wants a bot that wins that race for her.
+The Hochschule für Musik Freiburg uses Asimut (`hfm-freiburg.asimut.net`) for room booking. Rooms are bookable on a rolling 27.5-hour advance window (e.g., at 15:00 today you can book the 14:30–15:00 slot two days from now), creating a race condition where students camp the app to grab slots the moment they open. The user's sister wants a bot that wins that race for her.
 
 ## Solution
 
-A self-hosted web application that lets her define booking wishes in advance. A scheduler fires precise HTTP requests to Asimut at the exact moment the 48-hour window opens, securing rooms faster than any human can.
+A self-hosted web application that lets her define booking wishes in advance. A scheduler fires precise HTTP requests to Asimut at the exact moment the 27.5-hour window opens, securing rooms faster than any human can.
 
 ## Architecture
 
@@ -99,8 +99,9 @@ Note: The exact extension mechanism (whether extensions can be booked immediatel
 ## Scheduler Logic
 
 **Trigger calculation:**
-- Desired time: Wednesday 14:00
-- Trigger time: Monday 14:00 (48 hours before)
+- Advance window: at time T, you can book the slot starting at T-30min two days from now
+- Formula: `trigger_time = (slot_date - 2 days) + slot_start_time + 30min`
+- Example: to book the 14:30–15:00 slot on Wednesday → trigger fires at 15:00 on Monday
 
 **Precision:**
 - Job wakes up slightly early (~500ms)
