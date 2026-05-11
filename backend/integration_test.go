@@ -56,12 +56,11 @@ func TestFullBookingFlow(t *testing.T) {
 	router := srv.Router()
 
 	// 3. Create a booking via API
-	// Note: BookingWish struct has no JSON tags, so we use Go field names (case-insensitive match)
 	body, _ := json.Marshal(map[string]interface{}{
-		"Date":            "2026-05-15",
-		"StartTime":      "14:30",
-		"DurationMinutes": 30,
-		"RoomPriorities":  []int{114},
+		"date":             "2026-05-15",
+		"start_time":      "14:30",
+		"duration_minutes": 30,
+		"room_priorities":  []int{114},
 	})
 
 	req := httptest.NewRequest("POST", "/api/bookings", bytes.NewReader(body))

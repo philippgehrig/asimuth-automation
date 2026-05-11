@@ -10,18 +10,18 @@ import (
 
 // BookingWish represents a single booking request.
 type BookingWish struct {
-	ID              string
-	Date            string
-	StartTime       string
-	DurationMinutes int
-	RoomPriorities  []int
-	RecurrenceID    string
-	Status          string
-	ResultRoom      string
-	ResultDuration  *int
-	FailureReason   string
-	CreatedAt       string
-	UpdatedAt       string
+	ID              string `json:"id"`
+	Date            string `json:"date"`
+	StartTime       string `json:"start_time"`
+	DurationMinutes int    `json:"duration_minutes"`
+	RoomPriorities  []int  `json:"room_priorities"`
+	RecurrenceID    string `json:"recurrence_id,omitempty"`
+	Status          string `json:"status"`
+	ResultRoom      string `json:"result_room,omitempty"`
+	ResultDuration  *int   `json:"result_duration,omitempty"`
+	FailureReason   string `json:"failure_reason,omitempty"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 // CreateBooking inserts a new booking wish and returns the generated ID.

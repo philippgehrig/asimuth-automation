@@ -9,13 +9,13 @@ import (
 
 // RecurringSchedule represents a weekly recurring booking pattern.
 type RecurringSchedule struct {
-	ID              string
-	DayOfWeek       int
-	StartTime       string
-	DurationMinutes int
-	RoomPriorities  []int
-	Active          bool
-	CreatedAt       string
+	ID              string `json:"id"`
+	DayOfWeek       int    `json:"day_of_week"`
+	StartTime       string `json:"start_time"`
+	DurationMinutes int    `json:"duration_minutes"`
+	RoomPriorities  []int  `json:"room_priorities"`
+	Active          bool   `json:"active"`
+	CreatedAt       string `json:"created_at"`
 }
 
 // CreateRecurrence inserts a new recurring schedule and returns the generated ID.
