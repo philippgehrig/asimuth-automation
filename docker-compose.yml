@@ -1,0 +1,24 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - ASIMUT_EMAIL=${ASIMUT_EMAIL}
+      - ASIMUT_PASSWORD=${ASIMUT_PASSWORD}
+      - APP_PASSWORD=${APP_PASSWORD}
+      - DATABASE_PATH=/data/asimut.db
+    volumes:
+      - db_data:/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db_data:
