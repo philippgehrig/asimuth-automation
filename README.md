@@ -97,6 +97,6 @@ yarn dev
 ## How it works
 
 1. Create a booking wish via the web UI (date, time, duration, room priority list)
-2. The scheduler calculates when the booking window opens (27.5h advance window)
+2. The scheduler calculates when the booking window opens (47h30m advance: at time T you can book the slot starting at T-30min, two days from now)
 3. At the exact trigger time, the bot logs into Asimut and books the first available room from your priority list
 4. If the initial 30-min slot is booked, it immediately extends in 15-min increments until your desired duration is reached

@@ -106,8 +106,9 @@ func generateRecurrences(database *db.DB, srv *api.Server) {
 
 func nextWeekday(from time.Time, weekday time.Weekday, weeksAhead int) time.Time {
 	daysUntil := int(weekday) - int(from.Weekday())
-	if daysUntil <= 0 {
+	if daysUntil < 0 {
 		daysUntil += 7
 	}
-	return from.AddDate(0, 0, daysUntil+weeksAhead*7)
+	target := from.AddDate(0, 0, daysUntil+weeksAhead*7)
+	return time.Date(target.Year(), target.Month(), target.Day(), 0, 0, 0, 0, target.Location())
 }

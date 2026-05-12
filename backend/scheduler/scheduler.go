@@ -55,7 +55,6 @@ func ParseTime(s string) ([2]int, error) {
 // CalculateTriggerTime computes when to fire the booking request.
 // Rule: at time T, you can book the slot starting at T-30min two days from now.
 // Equivalently: trigger = slot_start - 48h + 30min = slot_start - 47h30m.
-// Note: the spec's "27.5h" was a documentation error — the real advance window is 47h30m.
 func CalculateTriggerTime(date, startTime string, loc *time.Location) (time.Time, error) {
 	slotDate, err := time.ParseInLocation("2006-01-02", date, loc)
 	if err != nil {

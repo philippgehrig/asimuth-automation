@@ -89,7 +89,9 @@ func TestFullBookingFlow(t *testing.T) {
 	}
 
 	// 5. Verify rooms endpoint works (login first)
-	asimutClient.Login()
+	if err := asimutClient.Login(); err != nil {
+		t.Fatalf("asimut login: %v", err)
+	}
 	req = httptest.NewRequest("GET", "/api/rooms", nil)
 	req.Header.Set("Authorization", "Bearer testpass")
 	w = httptest.NewRecorder()

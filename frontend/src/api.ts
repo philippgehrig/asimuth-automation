@@ -1,6 +1,7 @@
 import type { BookingWish } from './stores/bookings'
 import type { RecurringSchedule } from './stores/recurrences'
 import type { Room } from './stores/rooms'
+import { useAuthStore } from './stores/auth'
 
 const API_BASE = '/api'
 
@@ -18,7 +19,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   })
   if (resp.status === 401) {
-    localStorage.removeItem('app_token')
+    const auth = useAuthStore()
+    auth.logout()
     throw new Error('Unauthorized (401)')
   }
   if (!resp.ok) {
