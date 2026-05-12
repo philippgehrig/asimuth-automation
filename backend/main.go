@@ -70,6 +70,8 @@ func generateRecurrences(database *db.DB, srv *api.Server) {
 
 		for _, r := range recurrences {
 			for weeksAhead := 0; weeksAhead < 4; weeksAhead++ {
+				// DayOfWeek uses 0=Mon..6=Sun. Go's time.Weekday uses 0=Sun..6=Sat.
+				// Convert: Mon(0)->time.Monday(1), Tue(1)->time.Tuesday(2), ..., Sun(6)->time.Sunday(0)
 				target := nextWeekday(now, time.Weekday((r.DayOfWeek+1)%7), weeksAhead)
 				dateStr := target.Format("2006-01-02")
 

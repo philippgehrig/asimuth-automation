@@ -8,8 +8,9 @@ func TestCreateAndListRecurrences(t *testing.T) {
 	d := tempDB(t)
 
 	// Create two recurrences (Monday and Wednesday).
+	// DayOfWeek uses 0-indexed: 0=Mon, 1=Tue, ..., 6=Sun
 	id1, err := d.CreateRecurrence(RecurringSchedule{
-		DayOfWeek:       1, // Monday
+		DayOfWeek:       0, // Monday
 		StartTime:       "09:00",
 		DurationMinutes: 60,
 		RoomPriorities:  []int{1, 2, 3},
@@ -22,7 +23,7 @@ func TestCreateAndListRecurrences(t *testing.T) {
 	}
 
 	id2, err := d.CreateRecurrence(RecurringSchedule{
-		DayOfWeek:       3, // Wednesday
+		DayOfWeek:       2, // Wednesday
 		StartTime:       "14:00",
 		DurationMinutes: 90,
 		RoomPriorities:  []int{4, 5},
@@ -44,11 +45,11 @@ func TestCreateAndListRecurrences(t *testing.T) {
 	}
 
 	// Verify ordering (by day_of_week).
-	if recurrences[0].DayOfWeek != 1 {
-		t.Errorf("expected first recurrence on Monday (1), got %d", recurrences[0].DayOfWeek)
+	if recurrences[0].DayOfWeek != 0 {
+		t.Errorf("expected first recurrence on Monday (0), got %d", recurrences[0].DayOfWeek)
 	}
-	if recurrences[1].DayOfWeek != 3 {
-		t.Errorf("expected second recurrence on Wednesday (3), got %d", recurrences[1].DayOfWeek)
+	if recurrences[1].DayOfWeek != 2 {
+		t.Errorf("expected second recurrence on Wednesday (2), got %d", recurrences[1].DayOfWeek)
 	}
 
 	// Verify fields.
@@ -92,7 +93,7 @@ func TestToggleRecurrenceActive(t *testing.T) {
 	d := tempDB(t)
 
 	id, err := d.CreateRecurrence(RecurringSchedule{
-		DayOfWeek:       2, // Tuesday
+		DayOfWeek:       2, // Wednesday (0=Mon, 1=Tue, 2=Wed, ...)
 		StartTime:       "10:00",
 		DurationMinutes: 45,
 		RoomPriorities:  []int{1},

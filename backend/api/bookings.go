@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -38,8 +37,9 @@ func (s *Server) createBooking(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "date must be in YYYY-MM-DD format", http.StatusBadRequest)
 		return
 	}
-	if wish.StartTime == "" || !strings.Contains(wish.StartTime, ":") {
-		http.Error(w, "start_time is required and must be in HH:MM format", http.StatusBadRequest)
+	hm, err := scheduler.ParseTime(wish.StartTime)
+	if err != nil || hm[0] < 0 || hm[0] > 23 || hm[1] < 0 || hm[1] > 59 {
+		http.Error(w, "invalid start_time", http.StatusBadRequest)
 		return
 	}
 	if wish.DurationMinutes < 30 || wish.DurationMinutes > 180 {

@@ -22,9 +22,13 @@ async function handleLogin() {
   auth.login(password.value)
   try {
     await api.getStatus()
-  } catch {
+  } catch (e: any) {
     auth.logout()
-    error.value = 'Invalid password'
+    if (e.message && e.message.includes('401')) {
+      error.value = 'Invalid password'
+    } else {
+      error.value = 'Could not reach server'
+    }
   }
 }
 </script>

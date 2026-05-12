@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/philippgehrig/asimuth-automation/backend/db"
+	"github.com/philippgehrig/asimuth-automation/backend/scheduler"
 )
 
 func (s *Server) listRecurrences(w http.ResponseWriter, r *http.Request) {
@@ -18,18 +19,34 @@ func (s *Server) listRecurrences(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createRecurrence(w http.ResponseWriter, r *http.Request) {
-	var schedule db.RecurringSchedule
-	if err := json.NewDecoder(r.Body).Decode(&schedule); err != nil {
+	var rec db.RecurringSchedule
+	if err := json.NewDecoder(r.Body).Decode(&rec); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	id, err := s.db.CreateRecurrence(schedule)
+	if rec.DayOfWeek < 0 || rec.DayOfWeek > 6 {
+		http.Error(w, "day_of_week must be 0 (Monday) to 6 (Sunday)", http.StatusBadRequest)
+		return
+	}
+	if _, err := scheduler.ParseTime(rec.StartTime); err != nil {
+		http.Error(w, "invalid start_time format (expected HH:MM)", http.StatusBadRequest)
+		return
+	}
+	if rec.DurationMinutes < 30 || rec.DurationMinutes > 180 {
+		http.Error(w, "duration_minutes must be between 30 and 180", http.StatusBadRequest)
+		return
+	}
+	if len(rec.RoomPriorities) == 0 {
+		http.Error(w, "room_priorities must not be empty", http.StatusBadRequest)
+		return
+	}
+
+	id, err := s.db.CreateRecurrence(rec)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	writeJSON(w, map[string]string{"id": id})
 }
 

@@ -53,8 +53,9 @@ func ParseTime(s string) ([2]int, error) {
 }
 
 // CalculateTriggerTime computes when to fire the booking request.
-// At time T, you can book the slot starting at T-30min two days from now.
-// Formula: trigger = slot_start - 48h + 30min = slot_start - 47h30m
+// Rule: at time T, you can book the slot starting at T-30min two days from now.
+// Equivalently: trigger = slot_start - 48h + 30min = slot_start - 47h30m.
+// Note: the spec's "27.5h" was a documentation error — the real advance window is 47h30m.
 func CalculateTriggerTime(date, startTime string, loc *time.Location) (time.Time, error) {
 	slotDate, err := time.ParseInLocation("2006-01-02", date, loc)
 	if err != nil {
@@ -112,14 +113,20 @@ func (s *Scheduler) loop() {
 		case <-s.stop:
 			return
 		case now := <-ticker.C:
+			var readyJobs []*Job
+
 			s.mu.Lock()
 			for id, job := range s.jobs {
-				if !job.TriggerTime.After(now) {
-					go job.Execute()
+				if !now.Before(job.TriggerTime) {
+					readyJobs = append(readyJobs, job)
 					delete(s.jobs, id)
 				}
 			}
 			s.mu.Unlock()
+
+			for _, job := range readyJobs {
+				go job.Execute()
+			}
 		}
 	}
 }

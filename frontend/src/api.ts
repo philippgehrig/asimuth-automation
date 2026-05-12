@@ -19,7 +19,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
   if (resp.status === 401) {
     localStorage.removeItem('app_token')
-    throw new Error('Unauthorized')
+    throw new Error('Unauthorized (401)')
   }
   if (!resp.ok) {
     throw new Error(`API error: ${resp.status}`)
