@@ -22,7 +22,8 @@ func TestLogin_Success(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"response": map[string]interface{}{
-					"loggedin": true,
+					"heartbeat": map[string]interface{}{"loggedin": true},
+					"success":   true,
 				},
 			})
 		default:
@@ -52,7 +53,8 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"response": map[string]interface{}{
-					"loggedin": false,
+					"heartbeat": map[string]interface{}{"loggedin": false},
+					"success":   true,
 				},
 			})
 		default:
@@ -90,7 +92,8 @@ func TestBookRoom_Success(t *testing.T) {
 		case r.URL.Path == "/services/v2/heartbeat/me":
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"response": map[string]interface{}{
-					"loggedin": true,
+					"heartbeat": map[string]interface{}{"loggedin": true},
+					"success":   true,
 				},
 			})
 
@@ -129,13 +132,15 @@ func TestBookRoom_Success(t *testing.T) {
 		case r.URL.Path == "/services/v2/event/type=check" && r.Method == "POST":
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"response": map[string]interface{}{
-					"status": "ok",
+					"success":   true,
+					"event_ids": []interface{}{float64(0)},
 				},
 			})
 
 		case r.URL.Path == "/services/v2/event/type=save" && r.Method == "POST":
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"response": map[string]interface{}{
+					"success":   true,
 					"event_ids": []interface{}{float64(expectedEventID)},
 				},
 			})

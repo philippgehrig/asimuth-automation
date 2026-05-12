@@ -18,6 +18,9 @@ func (s *Server) listBookings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if bookings == nil {
+		bookings = []db.BookingWish{}
+	}
 	writeJSON(w, bookings)
 }
 
@@ -91,7 +94,9 @@ func (s *Server) ScheduleBookingJob(id string, wish db.BookingWish) {
 	}
 
 	if trigger.Before(time.Now()) {
-		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, "trigger time already passed")
+		// Trigger time already passed — execute immediately instead of failing
+		_ = s.db.UpdateBookingStatus(id, "executing", "", nil, "")
+		go s.executeBooking(id, wish)
 		return
 	}
 

@@ -39,5 +39,7 @@ export const api = {
   updateRecurrence: (id: string, data: Partial<RecurringSchedule>) => request<void>(`/recurrences/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteRecurrence: (id: string) => request<void>(`/recurrences/${id}`, { method: 'DELETE' }),
   getRooms: () => request<Room[]>('/rooms'),
+  getAllowedRooms: () => request<number[]>('/allowed-rooms'),
+  setAllowedRooms: (ids: number[]) => request<void>('/allowed-rooms', { method: 'PUT', body: JSON.stringify(ids) }),
   getStatus: () => request<{ asimut_connected: boolean }>('/settings/status'),
 }

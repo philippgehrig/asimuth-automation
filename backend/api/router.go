@@ -40,6 +40,8 @@ func (s *Server) Router() http.Handler {
 		r.Patch("/recurrences/{id}", s.updateRecurrence)
 		r.Delete("/recurrences/{id}", s.deleteRecurrence)
 		r.Get("/rooms", s.listRooms)
+		r.Get("/allowed-rooms", s.getAllowedRooms)
+		r.Put("/allowed-rooms", s.setAllowedRooms)
 		r.Get("/settings/status", s.getStatus)
 	})
 	return r

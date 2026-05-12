@@ -28,7 +28,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: number[]] }>()
 const roomsStore = useRoomsStore()
 
 const availableRooms = computed(() =>
-  roomsStore.rooms.filter(r => r.type === 'location' && r.bookable && !props.modelValue.includes(r.id))
+  roomsStore.allowedRooms.filter(r => !props.modelValue.includes(r.id))
 )
 
 function getRoomName(id: number): string {

@@ -25,7 +25,7 @@ func TestFullBookingFlow(t *testing.T) {
 			w.Header().Set("Location", "/public/hfm-freiburg.asimut.net")
 			w.WriteHeader(302)
 		case r.URL.Path == "/services/v2/heartbeat/me":
-			w.Write([]byte(`{"response":{"loggedin":true}}`))
+			w.Write([]byte(`{"response":{"heartbeat":{"loggedin":true},"success":true}}`))
 		case r.URL.Path == "/services/v2/locations":
 			w.Write([]byte(`{"response":{"locations":[{"id":114,"name":"MBP-326","secondary_name":"Test Room","bookable":true,"type":"location"}]}}`))
 		case r.URL.Path == "/services/v2/eventdefault":

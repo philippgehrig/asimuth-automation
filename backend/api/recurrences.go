@@ -15,6 +15,9 @@ func (s *Server) listRecurrences(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if recurrences == nil {
+		recurrences = []db.RecurringSchedule{}
+	}
 	writeJSON(w, recurrences)
 }
 

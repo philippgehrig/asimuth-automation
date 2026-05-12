@@ -159,21 +159,65 @@ func (c *Client) BookRoom(roomID int, start, end time.Time) (*BookingResult, err
 	// Override end time
 	eventData["en"] = end.Format(timeFormat)
 
+	// Ensure st and en use consistent format with milliseconds
+	if st, ok := eventData["st"].(string); ok {
+		if t, err := time.Parse("2006-01-02T15:04:05-07:00", st); err == nil {
+			eventData["st"] = t.Format(timeFormat)
+		}
+	}
+
+	// Clean nil values from nested structures that cause API 500 errors
+	cleanNils(eventData)
+
+	// Wrap event in {"event": ...} envelope as the API expects
+	envelope := map[string]interface{}{"event": eventData}
+
 	// Check booking
-	_, err = c.doJSONBody("POST", "/services/v2/event/type=check", eventData)
+	checkResp, err := c.doJSONBody("POST", "/services/v2/event/type=check", envelope)
 	if err != nil {
 		return nil, fmt.Errorf("checking booking: %w", err)
 	}
 
+	if checkResponse, ok := checkResp["response"].(map[string]interface{}); ok {
+		if success, _ := checkResponse["success"].(bool); !success {
+			msg := "booking check failed"
+			if br, ok := checkResponse["bookingrules"].(map[string]interface{}); ok {
+				if issues, ok := br["issues"].([]interface{}); ok && len(issues) > 0 {
+					if issue, ok := issues[0].(map[string]interface{}); ok {
+						if text, ok := issue["text"].(string); ok {
+							msg = text
+						}
+					}
+				}
+			}
+			return nil, fmt.Errorf("%s", msg)
+		}
+	}
+
 	// Save booking
-	saveResp, err := c.doJSONBody("POST", "/services/v2/event/type=save", eventData)
+	saveResp, err := c.doJSONBody("POST", "/services/v2/event/type=save", envelope)
 	if err != nil {
 		return nil, fmt.Errorf("saving booking: %w", err)
 	}
-
 	response, ok := saveResp["response"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("unexpected save response format")
+	}
+
+	success, _ := response["success"].(bool)
+	if !success {
+		// Extract error message from bookingrules
+		msg := "booking rejected by server"
+		if br, ok := response["bookingrules"].(map[string]interface{}); ok {
+			if issues, ok := br["issues"].([]interface{}); ok && len(issues) > 0 {
+				if issue, ok := issues[0].(map[string]interface{}); ok {
+					if text, ok := issue["text"].(string); ok {
+						msg = text
+					}
+				}
+			}
+		}
+		return nil, fmt.Errorf("%s", msg)
 	}
 
 	eventIDs, ok := response["event_ids"].([]interface{})
@@ -212,16 +256,19 @@ func (c *Client) ExtendBooking(eventID int, newEnd time.Time) (*BookingResult, e
 	// Update end time
 	event["en"] = newEnd.Format(timeFormat)
 
+	// Wrap in {"event": ...} envelope
+	envelope := map[string]interface{}{"event": event}
+
 	// Check extension
 	checkPath := fmt.Sprintf("/services/v2/event/event_id=%d;type=check", eventID)
-	_, err = c.doJSONBody("PATCH", checkPath, event)
+	_, err = c.doJSONBody("PATCH", checkPath, envelope)
 	if err != nil {
 		return nil, fmt.Errorf("checking extension: %w", err)
 	}
 
 	// Save extension
 	savePath := fmt.Sprintf("/services/v2/event/event_id=%d;type=save", eventID)
-	_, err = c.doJSONBody("PATCH", savePath, event)
+	_, err = c.doJSONBody("PATCH", savePath, envelope)
 	if err != nil {
 		return nil, fmt.Errorf("saving extension: %w", err)
 	}
@@ -283,7 +330,12 @@ func (c *Client) getHeartbeat() (bool, error) {
 		return false, fmt.Errorf("unexpected heartbeat response format")
 	}
 
-	loggedIn, ok := response["loggedin"].(bool)
+	heartbeat, ok := response["heartbeat"].(map[string]interface{})
+	if !ok {
+		return false, fmt.Errorf("unexpected heartbeat format")
+	}
+
+	loggedIn, ok := heartbeat["loggedin"].(bool)
 	if !ok {
 		return false, nil
 	}
@@ -315,9 +367,13 @@ func (c *Client) doJSON(method, path string, body io.Reader) (map[string]interfa
 		return nil, fmt.Errorf("reading response: %w", err)
 	}
 
+	if len(respBytes) == 0 {
+		return map[string]interface{}{}, nil
+	}
+
 	var result map[string]interface{}
 	if err := json.Unmarshal(respBytes, &result); err != nil {
-		return nil, fmt.Errorf("parsing JSON response: %w", err)
+		return nil, fmt.Errorf("parsing JSON response (status %d, body: %s): %w", resp.StatusCode, string(respBytes[:min(200, len(respBytes))]), err)
 	}
 
 	return result, nil
@@ -361,4 +417,22 @@ func boolFromInterface(v interface{}) bool {
 		return b
 	}
 	return false
+}
+
+// cleanNils recursively removes nil values from maps and slices.
+func cleanNils(v interface{}) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for k, v := range val {
+			if v == nil {
+				delete(val, k)
+			} else {
+				cleanNils(v)
+			}
+		}
+	case []interface{}:
+		for _, item := range val {
+			cleanNils(item)
+		}
+	}
 }

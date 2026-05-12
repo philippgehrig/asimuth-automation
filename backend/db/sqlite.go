@@ -71,6 +71,10 @@ func (d *DB) migrate() error {
 		updated_at TEXT DEFAULT (datetime('now')),
 		FOREIGN KEY (recurrence_id) REFERENCES recurring_schedules(id) ON DELETE SET NULL
 	);
+
+	CREATE TABLE IF NOT EXISTS allowed_rooms (
+		room_id INTEGER PRIMARY KEY
+	);
 	`
 
 	if _, err := d.conn.Exec(schema); err != nil {
