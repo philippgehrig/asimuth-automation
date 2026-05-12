@@ -1,3 +1,7 @@
+import type { BookingWish } from './stores/bookings'
+import type { RecurringSchedule } from './stores/recurrences'
+import type { Room } from './stores/rooms'
+
 const API_BASE = '/api'
 
 function getToken(): string {
@@ -15,7 +19,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
   if (resp.status === 401) {
     localStorage.removeItem('app_token')
-    window.location.reload()
     throw new Error('Unauthorized')
   }
   if (!resp.ok) {
@@ -26,13 +29,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  getBookings: () => request<any[]>('/bookings'),
-  createBooking: (data: any) => request<{ id: string }>('/bookings', { method: 'POST', body: JSON.stringify(data) }),
+  getBookings: () => request<BookingWish[]>('/bookings'),
+  createBooking: (data: Partial<BookingWish>) => request<{ id: string }>('/bookings', { method: 'POST', body: JSON.stringify(data) }),
   deleteBooking: (id: string) => request<void>(`/bookings/${id}`, { method: 'DELETE' }),
-  getRecurrences: () => request<any[]>('/recurrences'),
-  createRecurrence: (data: any) => request<{ id: string }>('/recurrences', { method: 'POST', body: JSON.stringify(data) }),
-  updateRecurrence: (id: string, data: any) => request<void>(`/recurrences/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  getRecurrences: () => request<RecurringSchedule[]>('/recurrences'),
+  createRecurrence: (data: Partial<RecurringSchedule>) => request<{ id: string }>('/recurrences', { method: 'POST', body: JSON.stringify(data) }),
+  updateRecurrence: (id: string, data: Partial<RecurringSchedule>) => request<void>(`/recurrences/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteRecurrence: (id: string) => request<void>(`/recurrences/${id}`, { method: 'DELETE' }),
-  getRooms: () => request<any[]>('/rooms'),
+  getRooms: () => request<Room[]>('/rooms'),
   getStatus: () => request<{ asimut_connected: boolean }>('/settings/status'),
 }

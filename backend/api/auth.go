@@ -12,7 +12,7 @@ func AuthMiddleware(password string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
 			token := strings.TrimPrefix(auth, "Bearer ")
-			if subtle.ConstantTimeCompare([]byte(token), []byte(password)) != 1 {
+			if password == "" || subtle.ConstantTimeCompare([]byte(token), []byte(password)) != 1 {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}

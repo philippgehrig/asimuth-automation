@@ -23,8 +23,11 @@ export const useBookingsStore = defineStore('bookings', () => {
 
   async function fetch() {
     loading.value = true
-    bookings.value = await api.getBookings()
-    loading.value = false
+    try {
+      bookings.value = await api.getBookings()
+    } finally {
+      loading.value = false
+    }
   }
 
   async function create(data: Partial<BookingWish>) {

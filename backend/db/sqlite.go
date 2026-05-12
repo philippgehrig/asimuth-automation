@@ -69,7 +69,7 @@ func (d *DB) migrate() error {
 		failure_reason TEXT,
 		created_at TEXT DEFAULT (datetime('now')),
 		updated_at TEXT DEFAULT (datetime('now')),
-		FOREIGN KEY (recurrence_id) REFERENCES recurring_schedules(id)
+		FOREIGN KEY (recurrence_id) REFERENCES recurring_schedules(id) ON DELETE SET NULL
 	);
 	`
 

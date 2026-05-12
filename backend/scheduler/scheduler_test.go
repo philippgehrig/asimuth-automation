@@ -40,9 +40,66 @@ func TestCalculateTriggerTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CalculateTriggerTime(tt.date, tt.startTime, loc)
+			got, err := CalculateTriggerTime(tt.date, tt.startTime, loc)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if !got.Equal(tt.want) {
 				t.Errorf("CalculateTriggerTime(%q, %q) = %v, want %v", tt.date, tt.startTime, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCalculateTriggerTime_InvalidInput(t *testing.T) {
+	loc, _ := time.LoadLocation("Europe/Berlin")
+
+	tests := []struct {
+		name      string
+		date      string
+		startTime string
+	}{
+		{"invalid date", "not-a-date", "14:30"},
+		{"invalid time format", "2026-05-13", "1430"},
+		{"invalid hour", "2026-05-13", "25:00"},
+		{"invalid minute", "2026-05-13", "14:61"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := CalculateTriggerTime(tt.date, tt.startTime, loc)
+			if err == nil {
+				t.Errorf("expected error for date=%q startTime=%q, got nil", tt.date, tt.startTime)
+			}
+		})
+	}
+}
+
+func TestParseTime(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    [2]int
+		wantErr bool
+	}{
+		{"14:30", [2]int{14, 30}, false},
+		{"09:00", [2]int{9, 0}, false},
+		{"1430", [2]int{}, true},
+		{"25:00", [2]int{}, true},
+		{"14:61", [2]int{}, true},
+		{"abc:def", [2]int{}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := ParseTime(tt.input)
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error for %q", tt.input)
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error for %q: %v", tt.input, err)
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("ParseTime(%q) = %v, want %v", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -100,4 +157,11 @@ func TestScheduler_DoesNotFireEarly(t *testing.T) {
 	if fired.Load() == 1 {
 		t.Fatal("job fired early")
 	}
+}
+
+func TestScheduler_StopIsIdempotent(t *testing.T) {
+	s := New()
+	s.Start()
+	s.Stop()
+	s.Stop() // Should not panic
 }

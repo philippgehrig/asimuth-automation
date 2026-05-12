@@ -9,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -41,6 +42,7 @@ type BookingResult struct {
 
 // Client communicates with the Asimut scheduling system.
 type Client struct {
+	mu         sync.Mutex
 	baseURL    string
 	email      string
 	password   string
@@ -68,6 +70,9 @@ func NewClient(baseURL, email, password string) *Client {
 
 // Login authenticates with the Asimut system using form POST.
 func (c *Client) Login() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	form := url.Values{}
 	form.Set("authenticate-url", "/public/hfm-freiburg.asimut.net")
 	form.Set("authenticate-useraccount", c.email)
@@ -102,6 +107,8 @@ func (c *Client) Login() error {
 
 // LoggedIn returns whether the client is currently authenticated.
 func (c *Client) LoggedIn() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.loggedIn
 }
 

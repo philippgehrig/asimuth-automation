@@ -13,7 +13,10 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Configuration error: %v", err)
+	}
 
 	database, err := db.New(cfg.DatabasePath)
 	if err != nil {
@@ -58,7 +61,11 @@ func generateRecurrences(database *db.DB, srv *api.Server) {
 			continue
 		}
 
-		loc, _ := time.LoadLocation("Europe/Berlin")
+		loc, err := time.LoadLocation("Europe/Berlin")
+		if err != nil {
+			log.Printf("Error loading timezone Europe/Berlin: %v, falling back to UTC", err)
+			loc = time.UTC
+		}
 		now := time.Now().In(loc)
 
 		for _, r := range recurrences {
@@ -66,7 +73,11 @@ func generateRecurrences(database *db.DB, srv *api.Server) {
 				target := nextWeekday(now, time.Weekday((r.DayOfWeek+1)%7), weeksAhead)
 				dateStr := target.Format("2006-01-02")
 
-				existing, _ := database.GetBookingByRecurrenceAndDate(r.ID, dateStr)
+				existing, err := database.GetBookingByRecurrenceAndDate(r.ID, dateStr)
+				if err != nil {
+					log.Printf("Error checking existing booking for recurrence %s date %s: %v", r.ID, dateStr, err)
+					continue
+				}
 				if existing != nil {
 					continue
 				}

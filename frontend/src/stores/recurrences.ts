@@ -18,8 +18,11 @@ export const useRecurrencesStore = defineStore('recurrences', () => {
 
   async function fetch() {
     loading.value = true
-    recurrences.value = await api.getRecurrences()
-    loading.value = false
+    try {
+      recurrences.value = await api.getRecurrences()
+    } finally {
+      loading.value = false
+    }
   }
 
   async function create(data: Partial<RecurringSchedule>) {

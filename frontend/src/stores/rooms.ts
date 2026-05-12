@@ -16,8 +16,11 @@ export const useRoomsStore = defineStore('rooms', () => {
 
   async function fetch() {
     loading.value = true
-    rooms.value = await api.getRooms()
-    loading.value = false
+    try {
+      rooms.value = await api.getRooms()
+    } finally {
+      loading.value = false
+    }
   }
 
   return { rooms, loading, fetch }

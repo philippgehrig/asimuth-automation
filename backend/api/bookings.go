@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -25,6 +26,28 @@ func (s *Server) createBooking(w http.ResponseWriter, r *http.Request) {
 	var wish db.BookingWish
 	if err := json.NewDecoder(r.Body).Decode(&wish); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if wish.Date == "" {
+		http.Error(w, "date is required", http.StatusBadRequest)
+		return
+	}
+	if _, err := time.Parse("2006-01-02", wish.Date); err != nil {
+		http.Error(w, "date must be in YYYY-MM-DD format", http.StatusBadRequest)
+		return
+	}
+	if wish.StartTime == "" || !strings.Contains(wish.StartTime, ":") {
+		http.Error(w, "start_time is required and must be in HH:MM format", http.StatusBadRequest)
+		return
+	}
+	if wish.DurationMinutes < 30 || wish.DurationMinutes > 180 {
+		http.Error(w, "duration_minutes must be between 30 and 180", http.StatusBadRequest)
+		return
+	}
+	if len(wish.RoomPriorities) == 0 {
+		http.Error(w, "room_priorities must not be empty", http.StatusBadRequest)
 		return
 	}
 
@@ -60,9 +83,15 @@ func (s *Server) ScheduleBookingJob(id string, wish db.BookingWish) {
 		return
 	}
 
-	trigger := scheduler.CalculateTriggerTime(wish.Date, wish.StartTime, loc)
+	trigger, err := scheduler.CalculateTriggerTime(wish.Date, wish.StartTime, loc)
+	if err != nil {
+		log.Printf("failed to calculate trigger time for booking %s: %v", id, err)
+		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, fmt.Sprintf("invalid schedule: %v", err))
+		return
+	}
 
 	if trigger.Before(time.Now()) {
+		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, "trigger time already passed")
 		return
 	}
 
@@ -84,9 +113,24 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 		return
 	}
 
-	loc, _ := time.LoadLocation("Europe/Berlin")
-	slotDate, _ := time.ParseInLocation("2006-01-02", wish.Date, loc)
-	hm := scheduler.ParseTime(wish.StartTime)
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, fmt.Sprintf("timezone error: %v", err))
+		return
+	}
+
+	slotDate, err := time.ParseInLocation("2006-01-02", wish.Date, loc)
+	if err != nil {
+		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, fmt.Sprintf("invalid date: %v", err))
+		return
+	}
+
+	hm, err := scheduler.ParseTime(wish.StartTime)
+	if err != nil {
+		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, fmt.Sprintf("invalid start time: %v", err))
+		return
+	}
+
 	start := time.Date(slotDate.Year(), slotDate.Month(), slotDate.Day(), hm[0], hm[1], 0, 0, loc)
 
 	// Initial booking duration: 30 minutes
