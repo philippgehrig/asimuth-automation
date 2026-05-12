@@ -5,9 +5,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/philippgehrig/asimuth-automation/backend/api"
 	"github.com/philippgehrig/asimuth-automation/backend/asimut"
@@ -16,6 +18,9 @@ import (
 )
 
 func TestFullBookingFlow(t *testing.T) {
+	// Use a date 5 days in the future so it's always in the future
+	futureDate := time.Now().AddDate(0, 0, 5).Format("2006-01-02")
+
 	// 1. Set up mock Asimut server
 	mockAsimut := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -29,7 +34,7 @@ func TestFullBookingFlow(t *testing.T) {
 		case r.URL.Path == "/services/v2/locations":
 			w.Write([]byte(`{"response":{"locations":[{"id":114,"name":"MBP-326","secondary_name":"Test Room","bookable":true,"type":"location"}]}}`))
 		case r.URL.Path == "/services/v2/eventdefault":
-			w.Write([]byte(`{"response":{"eventdefault":{"events":[{"id":0,"ar":"Einzelüben","ca":1,"st":"2026-05-15T14:30:00+02:00","en":"2026-05-15T15:00:00+02:00","rs":[{"id":114,"dn":"MBP-326"}],"pe":[{"id":1,"ro":1,"dn":"Test"}],"ps":[{"me":false,"ri":1,"rs":"T","rh":"T","rc":1,"bo":[{"id":1,"fn":"T","ln":"U","un":"t"}]}],"ri":{"e":true},"vi":"visible","cl":[]}]}}}`))
+			w.Write([]byte(fmt.Sprintf(`{"response":{"eventdefault":{"events":[{"id":0,"ar":"Einzelüben","ca":1,"st":"%sT14:30:00+02:00","en":"%sT15:00:00+02:00","rs":[{"id":114,"dn":"MBP-326"}],"pe":[{"id":1,"ro":1,"dn":"Test"}],"ps":[{"me":false,"ri":1,"rs":"T","rh":"T","rc":1,"bo":[{"id":1,"fn":"T","ln":"U","un":"t"}]}],"ri":{"e":true},"vi":"visible","cl":[]}]}}}`, futureDate, futureDate)))
 		case r.URL.Path == "/services/v2/event/type=check":
 			w.Write([]byte(`{"response":{"success":true,"event_ids":[0]}}`))
 		case r.URL.Path == "/services/v2/event/type=save":
@@ -57,7 +62,7 @@ func TestFullBookingFlow(t *testing.T) {
 
 	// 3. Create a booking via API
 	body, _ := json.Marshal(map[string]interface{}{
-		"date":             "2026-05-15",
+		"date":             futureDate,
 		"start_time":      "14:30",
 		"duration_minutes": 30,
 		"room_priorities":  []int{114},

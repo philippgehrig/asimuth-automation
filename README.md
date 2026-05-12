@@ -6,8 +6,8 @@ Automatically books practice rooms on Asimut (hfm-freiburg.asimut.net) at the ex
 
 | Container | Image | Port | Purpose |
 |-----------|-------|------|---------|
-| Backend | `<dockerhub-user>/asimut-bot-backend` | 8080 | Go API, scheduler, SQLite database |
-| Frontend | `<dockerhub-user>/asimut-bot-frontend` | 3000 | nginx serving Vue SPA, proxies `/api` to backend |
+| Backend | `philippgehrig/asimut-bot-backend` | 8080 | Go API, scheduler, SQLite database |
+| Frontend | `philippgehrig/asimut-bot-frontend` | 3000 | nginx serving Vue SPA, proxies `/api` to backend |
 
 ## Setup (Docker Compose)
 
@@ -38,7 +38,7 @@ docker run -d \
   -e APP_PASSWORD=choose_a_web_ui_password \
   -e DATABASE_PATH=/data/asimut.db \
   --restart unless-stopped \
-  <dockerhub-user>/asimut-bot-backend:latest
+  philippgehrig/asimut-bot-backend:latest
 ```
 
 ### 3. Start the frontend
@@ -52,7 +52,7 @@ docker run -d \
   --network-alias frontend \
   -p 3000:3000 \
   --restart unless-stopped \
-  <dockerhub-user>/asimut-bot-frontend:latest
+  philippgehrig/asimut-bot-frontend:latest
 ```
 
 The backend container needs the network alias `backend`:

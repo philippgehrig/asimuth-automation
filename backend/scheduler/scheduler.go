@@ -87,10 +87,13 @@ func (s *Scheduler) Cancel(id string) {
 	delete(s.jobs, id)
 }
 
-// Start sets running=true and spawns the loop goroutine.
+// Start sets running=true and spawns the loop goroutine. Safe to call multiple times.
 func (s *Scheduler) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.running {
+		return
+	}
 	s.running = true
 	go s.loop()
 }

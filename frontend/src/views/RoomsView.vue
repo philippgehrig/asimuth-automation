@@ -9,7 +9,7 @@
     <div v-if="roomsStore.loading" class="text-gray-500">Loading...</div>
     <div v-else class="space-y-1">
       <div v-for="room in filteredRooms" :key="room.id" @click="toggle(room.id)" class="flex items-center gap-3 p-3 bg-white border rounded cursor-pointer hover:bg-gray-50" :class="{ 'border-blue-500 bg-blue-50 hover:bg-blue-50': isAllowed(room.id) }">
-        <input type="checkbox" :checked="isAllowed(room.id)" class="rounded" @click.stop />
+        <input type="checkbox" :checked="isAllowed(room.id)" class="rounded" @click.stop="toggle(room.id)" />
         <div class="flex-1">
           <p class="text-sm font-medium">{{ room.name }}</p>
           <p class="text-xs text-gray-500">{{ room.secondary_name }}</p>

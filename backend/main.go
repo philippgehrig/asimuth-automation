@@ -75,6 +75,16 @@ func generateRecurrences(database *db.DB, srv *api.Server) {
 				target := nextWeekday(now, time.Weekday((r.DayOfWeek+1)%7), weeksAhead)
 				dateStr := target.Format("2006-01-02")
 
+				// Skip slots that have already started
+				hm, err := scheduler.ParseTime(r.StartTime)
+				if err != nil {
+					continue
+				}
+				slotStart := time.Date(target.Year(), target.Month(), target.Day(), hm[0], hm[1], 0, 0, loc)
+				if slotStart.Before(now) {
+					continue
+				}
+
 				existing, err := database.GetBookingByRecurrenceAndDate(r.ID, dateStr)
 				if err != nil {
 					log.Printf("Error checking existing booking for recurrence %s date %s: %v", r.ID, dateStr, err)

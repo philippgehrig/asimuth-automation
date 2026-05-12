@@ -13,6 +13,7 @@ const label = computed(() => {
   const labels: Record<string, string> = {
     pending: 'Pending',
     scheduled: 'Scheduled',
+    executing: 'Executing',
     booked: 'Booked',
     partially_booked: 'Partial',
     failed: 'Failed',
@@ -24,6 +25,7 @@ const classes = computed(() => {
   const map: Record<string, string> = {
     pending: 'bg-gray-100 text-gray-700',
     scheduled: 'bg-blue-100 text-blue-700',
+    executing: 'bg-purple-100 text-purple-700',
     booked: 'bg-green-100 text-green-700',
     partially_booked: 'bg-yellow-100 text-yellow-700',
     failed: 'bg-red-100 text-red-700',
