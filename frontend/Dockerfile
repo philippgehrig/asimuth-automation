@@ -7,5 +7,8 @@ RUN yarn build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV LISTEN_PORT=3000
+ENV BACKEND_HOST=backend
+ENV BACKEND_PORT=8080
 EXPOSE 3000

@@ -51,6 +51,9 @@ docker run -d \
   --network asimut \
   --network-alias frontend \
   -p 3000:3000 \
+  -e LISTEN_PORT=3000 \
+  -e BACKEND_HOST=backend \
+  -e BACKEND_PORT=8080 \
   --restart unless-stopped \
   philippgehrig/asimut-bot-frontend:latest
 ```
@@ -65,13 +68,16 @@ Alternatively, if your Unraid setup uses a reverse proxy (like Nginx Proxy Manag
 
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ASIMUT_EMAIL` | Yes | Login email for hfm-freiburg.asimut.net |
-| `ASIMUT_PASSWORD` | Yes | Login password |
-| `APP_PASSWORD` | Yes | Password to access the web UI |
-| `DATABASE_PATH` | No | SQLite file path (default: `/data/asimut.db`) |
-| `PORT` | No | Backend port (default: `8080`) |
+| Variable | Container | Required | Description |
+|----------|-----------|----------|-------------|
+| `ASIMUT_EMAIL` | Backend | Yes | Login email for hfm-freiburg.asimut.net |
+| `ASIMUT_PASSWORD` | Backend | Yes | Login password |
+| `APP_PASSWORD` | Backend | Yes | Password to access the web UI |
+| `DATABASE_PATH` | Backend | No | SQLite file path (default: `/data/asimut.db`) |
+| `PORT` | Backend | No | Backend port (default: `8080`) |
+| `LISTEN_PORT` | Frontend | No | Port nginx listens on (default: `3000`) |
+| `BACKEND_HOST` | Frontend | No | Backend hostname (default: `backend`) |
+| `BACKEND_PORT` | Frontend | No | Backend port (default: `8080`) |
 
 ### Volumes
 

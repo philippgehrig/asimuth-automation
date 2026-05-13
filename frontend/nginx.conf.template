@@ -1,12 +1,12 @@
 server {
-    listen 3000;
+    listen ${LISTEN_PORT};
     root /usr/share/nginx/html;
     index index.html;
 
     resolver 127.0.0.11 valid=30s;
 
     location /api {
-        set $backend_upstream http://backend:8080;
+        set $backend_upstream http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_pass $backend_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
