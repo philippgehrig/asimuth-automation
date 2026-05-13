@@ -144,6 +144,7 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 
 	var bookedRoom string
 	var eventID int
+	var lastErr error
 
 	for _, roomID := range wish.RoomPriorities {
 		result, err := s.asimut.BookRoom(roomID, start, end)
@@ -152,10 +153,16 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 			eventID = result.EventID
 			break
 		}
+		lastErr = err
+		log.Printf("booking %s: room %d failed: %v", id, roomID, err)
 	}
 
 	if bookedRoom == "" {
-		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, "no room available")
+		reason := "no room available"
+		if lastErr != nil {
+			reason = fmt.Sprintf("no room available: %v", lastErr)
+		}
+		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, reason)
 		return
 	}
 
