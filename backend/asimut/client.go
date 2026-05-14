@@ -80,7 +80,11 @@ func (c *Client) Login() error {
 	form.Set("authenticate-password", c.password)
 	form.Set("authenticate-verification", "ok")
 
-	req, err := http.NewRequest("POST", c.baseURL+"/public/login.php", strings.NewReader(form.Encode()))
+	encoded := form.Encode()
+	log.Printf("[asimut] login email: %s, password length: %d, password first/last: %c...%c", c.email, len(c.password), c.password[0], c.password[len(c.password)-1])
+	log.Printf("[asimut] form body length: %d", len(encoded))
+
+	req, err := http.NewRequest("POST", c.baseURL+"/public/login.php", strings.NewReader(encoded))
 	if err != nil {
 		return fmt.Errorf("creating login request: %w", err)
 	}
@@ -91,9 +95,17 @@ func (c *Client) Login() error {
 	if err != nil {
 		return fmt.Errorf("executing login request: %w", err)
 	}
-	defer resp.Body.Close()
 
-	log.Printf("[asimut] login response: status=%d, cookies=%d", resp.StatusCode, len(resp.Cookies()))
+	respBody, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	log.Printf("[asimut] login response: status=%d, cookies=%d, body_length=%d", resp.StatusCode, len(resp.Cookies()), len(respBody))
+	if resp.StatusCode != 302 && len(respBody) > 0 {
+		snippet := string(respBody)
+		if len(snippet) > 500 {
+			snippet = snippet[:500]
+		}
+		log.Printf("[asimut] login response body: %s", snippet)
+	}
 	for _, cookie := range resp.Cookies() {
 		log.Printf("[asimut] set-cookie: %s=%s (domain=%s, path=%s)", cookie.Name, cookie.Value[:min(8, len(cookie.Value))]+"..", cookie.Domain, cookie.Path)
 	}
