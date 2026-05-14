@@ -149,7 +149,7 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 	for _, roomID := range wish.RoomPriorities {
 		result, err := s.asimut.BookRoom(roomID, start, end)
 		if err == nil && result.Success {
-			bookedRoom = fmt.Sprintf("%d", roomID)
+			bookedRoom = s.resolveRoomName(roomID)
 			eventID = result.EventID
 			break
 		}
@@ -187,4 +187,17 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 
 	resultDuration := totalMinutes
 	_ = s.db.UpdateBookingStatus(id, status, bookedRoom, &resultDuration, "")
+}
+
+func (s *Server) resolveRoomName(roomID int) string {
+	locations, err := s.asimut.GetLocations()
+	if err != nil {
+		return fmt.Sprintf("%d", roomID)
+	}
+	for _, loc := range locations {
+		if loc.ID == roomID {
+			return loc.Name
+		}
+	}
+	return fmt.Sprintf("%d", roomID)
 }
