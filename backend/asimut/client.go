@@ -139,20 +139,30 @@ func (c *Client) LoggedIn() bool {
 	return c.loggedIn
 }
 
+// InvalidateSession marks the client as logged out so the next call will re-login.
+func (c *Client) InvalidateSession() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.loggedIn = false
+}
+
 // GetLocations retrieves all available locations from Asimut.
 func (c *Client) GetLocations() ([]Location, error) {
 	respBody, err := c.doJSON("GET", "/services/v2/locations", nil)
 	if err != nil {
+		c.InvalidateSession()
 		return nil, fmt.Errorf("getting locations: %w", err)
 	}
 
 	response, ok := respBody["response"].(map[string]interface{})
 	if !ok {
+		c.InvalidateSession()
 		return nil, fmt.Errorf("unexpected response format")
 	}
 
 	locationsRaw, ok := response["locations"].([]interface{})
 	if !ok {
+		c.InvalidateSession()
 		return nil, fmt.Errorf("unexpected locations format")
 	}
 
