@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -91,6 +92,20 @@ func (c *Client) Login() error {
 		return fmt.Errorf("executing login request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	log.Printf("[asimut] login response: status=%d, cookies=%d", resp.StatusCode, len(resp.Cookies()))
+	for _, cookie := range resp.Cookies() {
+		log.Printf("[asimut] set-cookie: %s=%s (domain=%s, path=%s)", cookie.Name, cookie.Value[:min(8, len(cookie.Value))]+"..", cookie.Domain, cookie.Path)
+	}
+
+	// Log cookies in jar for the base URL
+	if u, err := url.Parse(c.baseURL); err == nil {
+		jarCookies := c.httpClient.Jar.Cookies(u)
+		log.Printf("[asimut] jar cookies for %s: %d", c.baseURL, len(jarCookies))
+		for _, cookie := range jarCookies {
+			log.Printf("[asimut] jar cookie: %s=%s..", cookie.Name, cookie.Value[:min(8, len(cookie.Value))])
+		}
+	}
 
 	// Verify login by checking heartbeat
 	loggedIn, err := c.getHeartbeat()
@@ -322,8 +337,11 @@ func (c *Client) getEventDefault(roomID int, start time.Time) (map[string]interf
 func (c *Client) getHeartbeat() (bool, error) {
 	respBody, err := c.doJSON("GET", "/services/v2/heartbeat/me", nil)
 	if err != nil {
+		log.Printf("[asimut] heartbeat error: %v", err)
 		return false, fmt.Errorf("getting heartbeat: %w", err)
 	}
+
+	log.Printf("[asimut] heartbeat raw response: %v", respBody)
 
 	response, ok := respBody["response"].(map[string]interface{})
 	if !ok {
@@ -332,14 +350,17 @@ func (c *Client) getHeartbeat() (bool, error) {
 
 	heartbeat, ok := response["heartbeat"].(map[string]interface{})
 	if !ok {
+		log.Printf("[asimut] heartbeat missing 'heartbeat' key, response keys: %v", response)
 		return false, fmt.Errorf("unexpected heartbeat format")
 	}
 
 	loggedIn, ok := heartbeat["loggedin"].(bool)
 	if !ok {
+		log.Printf("[asimut] heartbeat 'loggedin' not a bool: %v (type %T)", heartbeat["loggedin"], heartbeat["loggedin"])
 		return false, nil
 	}
 
+	log.Printf("[asimut] heartbeat loggedin=%v", loggedIn)
 	return loggedIn, nil
 }
 
@@ -356,11 +377,19 @@ func (c *Client) doJSON(method, path string, body io.Reader) (map[string]interfa
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	// Log cookies being sent
+	if u, err := url.Parse(c.baseURL + path); err == nil {
+		cookies := c.httpClient.Jar.Cookies(u)
+		log.Printf("[asimut] %s %s — sending %d cookies", method, path, len(cookies))
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	log.Printf("[asimut] %s %s — status %d", method, path, resp.StatusCode)
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
