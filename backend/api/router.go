@@ -43,6 +43,7 @@ func (s *Server) Router() http.Handler {
 		r.Get("/allowed-rooms", s.getAllowedRooms)
 		r.Put("/allowed-rooms", s.setAllowedRooms)
 		r.Get("/settings/status", s.getStatus)
+		r.Post("/settings/reconnect", s.reconnect)
 	})
 	return r
 }

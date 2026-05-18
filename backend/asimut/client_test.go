@@ -75,6 +75,99 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	}
 }
 
+func TestLogin_SessionExpired_RetriesWithFreshJar(t *testing.T) {
+	loginAttempts := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/public/login.php":
+			loginAttempts++
+			http.SetCookie(w, &http.Cookie{
+				Name:  "PHPSESSID",
+				Value: "new-session-id",
+			})
+			w.WriteHeader(http.StatusFound)
+		case "/services/v2/heartbeat/me":
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"response": map[string]interface{}{
+					"heartbeat": map[string]interface{}{"loggedin": true},
+					"success":   true,
+				},
+			})
+		default:
+			t.Errorf("unexpected request to %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test@example.com", "password123")
+
+	// First login succeeds
+	err := client.Login()
+	if err != nil {
+		t.Fatalf("first Login() returned error: %v", err)
+	}
+
+	// Simulate session expiry — invalidate and login again
+	client.InvalidateSession()
+	loginAttempts = 0
+
+	err = client.Login()
+	if err != nil {
+		t.Fatalf("second Login() returned error: %v", err)
+	}
+
+	if !client.LoggedIn() {
+		t.Error("expected LoggedIn() to return true after re-login")
+	}
+}
+
+func TestLogin_FirstAttemptFails_RetrySucceeds(t *testing.T) {
+	heartbeatCalls := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/public/login.php":
+			http.SetCookie(w, &http.Cookie{
+				Name:  "PHPSESSID",
+				Value: "session-id",
+			})
+			w.WriteHeader(http.StatusFound)
+		case "/services/v2/heartbeat/me":
+			heartbeatCalls++
+			w.Header().Set("Content-Type", "application/json")
+			// First heartbeat call fails (simulates stale session), second succeeds
+			loggedIn := heartbeatCalls > 1
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"response": map[string]interface{}{
+					"heartbeat": map[string]interface{}{"loggedin": loggedIn},
+					"success":   true,
+				},
+			})
+		default:
+			t.Errorf("unexpected request to %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test@example.com", "password123")
+	err := client.Login()
+	if err != nil {
+		t.Fatalf("Login() returned error: %v (heartbeat calls: %d)", err, heartbeatCalls)
+	}
+
+	if !client.LoggedIn() {
+		t.Error("expected LoggedIn() to return true after retry succeeded")
+	}
+
+	if heartbeatCalls < 2 {
+		t.Errorf("expected at least 2 heartbeat calls (retry), got %d", heartbeatCalls)
+	}
+}
+
 func TestBookRoom_Success(t *testing.T) {
 	expectedEventID := 12345
 

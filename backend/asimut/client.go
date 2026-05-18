@@ -70,9 +70,37 @@ func NewClient(baseURL, email, password string) *Client {
 }
 
 // Login authenticates with the Asimut system using form POST.
+// It resets the cookie jar to avoid stale session cookies, and retries
+// once with a fresh jar if the first attempt fails.
 func (c *Client) Login() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	err := c.doLogin()
+	if err != nil {
+		log.Printf("[asimut] first login attempt failed: %v — retrying with fresh session", err)
+		// Retry once with a completely fresh cookie jar
+		c.resetCookieJar()
+		err = c.doLogin()
+		if err != nil {
+			return fmt.Errorf("login failed after retry: %w", err)
+		}
+	}
+
+	c.loggedIn = true
+	return nil
+}
+
+// resetCookieJar replaces the cookie jar with a fresh one to discard stale sessions.
+func (c *Client) resetCookieJar() {
+	jar, _ := cookiejar.New(nil)
+	c.httpClient.Jar = jar
+}
+
+// doLogin performs the actual login POST and heartbeat verification.
+func (c *Client) doLogin() error {
+	// Always start with a fresh cookie jar to avoid stale PHPSESSID
+	c.resetCookieJar()
 
 	form := url.Values{}
 	form.Set("authenticate-url", "/public/hfm-freiburg.asimut.net")
@@ -128,7 +156,6 @@ func (c *Client) Login() error {
 		return fmt.Errorf("login failed: invalid credentials")
 	}
 
-	c.loggedIn = true
 	return nil
 }
 

@@ -42,4 +42,5 @@ export const api = {
   getAllowedRooms: () => request<number[]>('/allowed-rooms'),
   setAllowedRooms: (ids: number[]) => request<void>('/allowed-rooms', { method: 'PUT', body: JSON.stringify(ids) }),
   getStatus: () => request<{ asimut_connected: boolean }>('/settings/status'),
+  reconnect: () => request<{ asimut_connected: boolean; error?: string }>('/settings/reconnect', { method: 'POST' }),
 }
