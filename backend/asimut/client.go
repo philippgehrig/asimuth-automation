@@ -214,11 +214,15 @@ func (c *Client) GetLocations() ([]Location, error) {
 
 // BookRoom books a room for the given time range.
 func (c *Client) BookRoom(roomID int, start, end time.Time) (*BookingResult, error) {
+	log.Printf("[asimut] book: === booking room %d from %s to %s ===", roomID, start.Format(timeFormat), end.Format(timeFormat))
+
 	// Get event default template
 	eventData, err := c.getEventDefault(roomID, start)
 	if err != nil {
+		log.Printf("[asimut] book: getEventDefault failed: %v", err)
 		return nil, fmt.Errorf("getting event default: %w", err)
 	}
+	log.Printf("[asimut] book: got event default, st=%v en=%v", eventData["st"], eventData["en"])
 
 	// Override end time
 	eventData["en"] = end.Format(timeFormat)
@@ -237,8 +241,10 @@ func (c *Client) BookRoom(roomID int, start, end time.Time) (*BookingResult, err
 	envelope := map[string]interface{}{"event": eventData}
 
 	// Check booking
+	log.Printf("[asimut] book: sending check for room %d", roomID)
 	checkResp, err := c.doJSONBody("POST", "/services/v2/event/type=check", envelope)
 	if err != nil {
+		log.Printf("[asimut] book: check request failed: %v", err)
 		return nil, fmt.Errorf("checking booking: %w", err)
 	}
 
@@ -254,23 +260,27 @@ func (c *Client) BookRoom(roomID int, start, end time.Time) (*BookingResult, err
 					}
 				}
 			}
+			log.Printf("[asimut] book: check rejected: %s", msg)
 			return nil, fmt.Errorf("%s", msg)
 		}
+		log.Printf("[asimut] book: check passed for room %d", roomID)
 	}
 
 	// Save booking
+	log.Printf("[asimut] book: sending save for room %d", roomID)
 	saveResp, err := c.doJSONBody("POST", "/services/v2/event/type=save", envelope)
 	if err != nil {
+		log.Printf("[asimut] book: save request failed: %v", err)
 		return nil, fmt.Errorf("saving booking: %w", err)
 	}
 	response, ok := saveResp["response"].(map[string]interface{})
 	if !ok {
+		log.Printf("[asimut] book: unexpected save response format: %v", saveResp)
 		return nil, fmt.Errorf("unexpected save response format")
 	}
 
 	success, _ := response["success"].(bool)
 	if !success {
-		// Extract error message from bookingrules
 		msg := "booking rejected by server"
 		if br, ok := response["bookingrules"].(map[string]interface{}); ok {
 			if issues, ok := br["issues"].([]interface{}); ok && len(issues) > 0 {
@@ -281,15 +291,18 @@ func (c *Client) BookRoom(roomID int, start, end time.Time) (*BookingResult, err
 				}
 			}
 		}
+		log.Printf("[asimut] book: save rejected: %s", msg)
 		return nil, fmt.Errorf("%s", msg)
 	}
 
 	eventIDs, ok := response["event_ids"].([]interface{})
 	if !ok || len(eventIDs) == 0 {
+		log.Printf("[asimut] book: no event ID in save response: %v", response)
 		return nil, fmt.Errorf("no event ID in save response")
 	}
 
 	eventID := intFromInterface(eventIDs[0])
+	log.Printf("[asimut] book: === room %d booked successfully, eventID=%d ===", roomID, eventID)
 
 	return &BookingResult{
 		EventID: eventID,
@@ -300,10 +313,13 @@ func (c *Client) BookRoom(roomID int, start, end time.Time) (*BookingResult, err
 
 // ExtendBooking extends an existing booking to a new end time.
 func (c *Client) ExtendBooking(eventID int, newEnd time.Time) (*BookingResult, error) {
+	log.Printf("[asimut] extend: === extending event %d to %s ===", eventID, newEnd.Format(timeFormat))
+
 	// Get existing event
 	path := fmt.Sprintf("/services/v2/event/event_id=%d", eventID)
 	eventResp, err := c.doJSON("GET", path, nil)
 	if err != nil {
+		log.Printf("[asimut] extend: failed to GET event %d: %v", eventID, err)
 		return nil, fmt.Errorf("getting event: %w", err)
 	}
 
@@ -320,7 +336,7 @@ func (c *Client) ExtendBooking(eventID int, newEnd time.Time) (*BookingResult, e
 		return nil, fmt.Errorf("unexpected event format, available keys: %v", keys(response))
 	}
 
-	log.Printf("[asimut] extend: current event en=%v, updating to %s", event["en"], newEnd.Format(timeFormat))
+	log.Printf("[asimut] extend: current event st=%v en=%v, updating en to %s", event["st"], event["en"], newEnd.Format(timeFormat))
 
 	// Update end time
 	event["en"] = newEnd.Format(timeFormat)
@@ -333,8 +349,10 @@ func (c *Client) ExtendBooking(eventID int, newEnd time.Time) (*BookingResult, e
 
 	// Check extension
 	checkPath := fmt.Sprintf("/services/v2/event/event_id=%d;type=check", eventID)
+	log.Printf("[asimut] extend: sending PATCH check for event %d", eventID)
 	checkResp, err := c.doJSONBody("PATCH", checkPath, envelope)
 	if err != nil {
+		log.Printf("[asimut] extend: PATCH check request failed: %v", err)
 		return nil, fmt.Errorf("checking extension: %w", err)
 	}
 
@@ -350,15 +368,20 @@ func (c *Client) ExtendBooking(eventID int, newEnd time.Time) (*BookingResult, e
 					}
 				}
 			}
-			log.Printf("[asimut] extend: check rejected: %s", msg)
+			log.Printf("[asimut] extend: check rejected: %s (full response: %v)", msg, checkResp)
 			return nil, fmt.Errorf("%s", msg)
 		}
+		log.Printf("[asimut] extend: check passed for event %d", eventID)
+	} else {
+		log.Printf("[asimut] extend: check response has unexpected structure: %v", checkResp)
 	}
 
 	// Save extension
 	savePath := fmt.Sprintf("/services/v2/event/event_id=%d;type=save", eventID)
+	log.Printf("[asimut] extend: sending PATCH save for event %d", eventID)
 	saveResp, err := c.doJSONBody("PATCH", savePath, envelope)
 	if err != nil {
+		log.Printf("[asimut] extend: PATCH save request failed: %v", err)
 		return nil, fmt.Errorf("saving extension: %w", err)
 	}
 
@@ -374,12 +397,15 @@ func (c *Client) ExtendBooking(eventID int, newEnd time.Time) (*BookingResult, e
 					}
 				}
 			}
-			log.Printf("[asimut] extend: save rejected: %s", msg)
+			log.Printf("[asimut] extend: save rejected: %s (full response: %v)", msg, saveResp)
 			return nil, fmt.Errorf("%s", msg)
 		}
+		log.Printf("[asimut] extend: save succeeded for event %d", eventID)
+	} else {
+		log.Printf("[asimut] extend: save response has unexpected structure: %v", saveResp)
 	}
 
-	log.Printf("[asimut] extend: event %d extended to %s", eventID, newEnd.Format(timeFormat))
+	log.Printf("[asimut] extend: === event %d successfully extended to %s ===", eventID, newEnd.Format(timeFormat))
 	return &BookingResult{
 		EventID: eventID,
 		Success: true,

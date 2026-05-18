@@ -113,10 +113,15 @@ func (s *Server) ScheduleBookingJob(id string, wish db.BookingWish) {
 
 // executeBooking logs into Asimut and attempts to book a room from the priority list.
 func (s *Server) executeBooking(id string, wish db.BookingWish) {
+	log.Printf("booking %s: === EXECUTION START === date=%s start=%s duration=%dmin rooms=%v",
+		id, wish.Date, wish.StartTime, wish.DurationMinutes, wish.RoomPriorities)
+
 	if err := s.asimut.Login(); err != nil {
+		log.Printf("booking %s: login failed: %v", id, err)
 		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, fmt.Sprintf("login failed: %v", err))
 		return
 	}
+	log.Printf("booking %s: login successful", id)
 
 	loc, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
@@ -142,15 +147,20 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 	initialDuration := 30 * time.Minute
 	end := start.Add(initialDuration)
 
+	log.Printf("booking %s: attempting initial booking: %s to %s (30min)",
+		id, start.Format("2006-01-02 15:04"), end.Format("15:04"))
+
 	var bookedRoom string
 	var eventID int
 	var lastErr error
 
 	for _, roomID := range wish.RoomPriorities {
+		log.Printf("booking %s: trying room %d (%s)", id, roomID, s.resolveRoomName(roomID))
 		result, err := s.asimut.BookRoom(roomID, start, end)
 		if err == nil && result.Success {
 			bookedRoom = s.resolveRoomName(roomID)
 			eventID = result.EventID
+			log.Printf("booking %s: room %d booked successfully, eventID=%d", id, roomID, eventID)
 			break
 		}
 		lastErr = err
@@ -162,30 +172,80 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 		if lastErr != nil {
 			reason = fmt.Sprintf("no room available: %v", lastErr)
 		}
+		log.Printf("booking %s: === FAILED === %s", id, reason)
 		_ = s.db.UpdateBookingStatus(id, "failed", "", nil, reason)
 		return
 	}
 
-	// Extend in 15-minute increments up to desired duration
+	// Extend in 15-minute increments up to desired duration.
+	// The booking horizon is now+48h, so we must wait for it to advance
+	// before each extension beyond the initial 30 minutes.
 	totalMinutes := 30
 	desiredMinutes := wish.DurationMinutes
-	log.Printf("booking %s: initial 30min booked (event %d), extending to %d min", id, eventID, desiredMinutes)
+	log.Printf("booking %s: initial 30min booked (event %d, room %s), extending to %d min",
+		id, eventID, bookedRoom, desiredMinutes)
 
 	for totalMinutes < desiredMinutes {
 		newEnd := end.Add(15 * time.Minute)
-		log.Printf("booking %s: extending event %d to %s (%d -> %d min)", id, eventID, newEnd.Format("15:04"), totalMinutes, totalMinutes+15)
+
+		// The horizon is now+48h. To extend to newEnd, we need now+48h >= newEnd,
+		// i.e., now >= newEnd - 48h. Wait until that time plus a small buffer.
+		requiredNow := newEnd.Add(-48 * time.Hour)
+		waitDuration := time.Until(requiredNow)
+
+		if waitDuration > 0 {
+			// Add 30-second buffer to ensure horizon has advanced past our target
+			waitDuration += 30 * time.Second
+			log.Printf("booking %s: waiting %v for horizon to allow extension to %s (need now >= %s, current now = %s)",
+				id, waitDuration.Round(time.Second), newEnd.Format("15:04"),
+				requiredNow.Format("15:04:05"), time.Now().In(loc).Format("15:04:05"))
+			time.Sleep(waitDuration)
+			log.Printf("booking %s: wait complete, now = %s, attempting extension", id, time.Now().In(loc).Format("15:04:05"))
+		} else {
+			log.Printf("booking %s: horizon already allows extension to %s (needed now >= %s, current now = %s)",
+				id, newEnd.Format("15:04"), requiredNow.Format("15:04:05"), time.Now().In(loc).Format("15:04:05"))
+		}
+
+		// Re-login before extension to ensure fresh session after long wait
+		if waitDuration > 5*time.Minute {
+			log.Printf("booking %s: re-login after long wait", id)
+			if err := s.asimut.Login(); err != nil {
+				log.Printf("booking %s: re-login failed: %v, stopping extensions", id, err)
+				break
+			}
+			log.Printf("booking %s: re-login successful", id)
+		}
+
+		log.Printf("booking %s: extending event %d to %s (%d -> %d min)",
+			id, eventID, newEnd.Format("15:04"), totalMinutes, totalMinutes+15)
 		_, err := s.asimut.ExtendBooking(eventID, newEnd)
 		if err != nil {
 			log.Printf("booking %s: extension failed at %d min: %v", id, totalMinutes+15, err)
-			break
+			// Retry once after a short wait in case of timing edge case
+			log.Printf("booking %s: retrying extension in 60s", id)
+			time.Sleep(60 * time.Second)
+			if err2 := s.asimut.Login(); err2 != nil {
+				log.Printf("booking %s: retry re-login failed: %v", id, err2)
+				break
+			}
+			_, err = s.asimut.ExtendBooking(eventID, newEnd)
+			if err != nil {
+				log.Printf("booking %s: extension retry also failed: %v, stopping", id, err)
+				break
+			}
+			log.Printf("booking %s: extension retry succeeded", id)
 		}
 		end = newEnd
 		totalMinutes += 15
+		log.Printf("booking %s: extension successful, total duration now %d min", id, totalMinutes)
 	}
 
 	status := "booked"
 	if totalMinutes < desiredMinutes {
 		status = "partially_booked"
+		log.Printf("booking %s: === PARTIAL === booked %d/%d min in room %s", id, totalMinutes, desiredMinutes, bookedRoom)
+	} else {
+		log.Printf("booking %s: === SUCCESS === booked full %d min in room %s", id, totalMinutes, bookedRoom)
 	}
 
 	resultDuration := totalMinutes
