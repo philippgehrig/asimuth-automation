@@ -307,36 +307,79 @@ func (c *Client) ExtendBooking(eventID int, newEnd time.Time) (*BookingResult, e
 		return nil, fmt.Errorf("getting event: %w", err)
 	}
 
+	log.Printf("[asimut] extend: GET event %d response keys: %v", eventID, keys(eventResp))
+
 	response, ok := eventResp["response"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected event response format")
+		return nil, fmt.Errorf("unexpected event response format: %v", eventResp)
 	}
 
 	event, ok := response["event"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected event format")
+		log.Printf("[asimut] extend: response keys: %v", keys(response))
+		return nil, fmt.Errorf("unexpected event format, available keys: %v", keys(response))
 	}
+
+	log.Printf("[asimut] extend: current event en=%v, updating to %s", event["en"], newEnd.Format(timeFormat))
 
 	// Update end time
 	event["en"] = newEnd.Format(timeFormat)
+
+	// Clean nil values that cause API 500 errors
+	cleanNils(event)
 
 	// Wrap in {"event": ...} envelope
 	envelope := map[string]interface{}{"event": event}
 
 	// Check extension
 	checkPath := fmt.Sprintf("/services/v2/event/event_id=%d;type=check", eventID)
-	_, err = c.doJSONBody("PATCH", checkPath, envelope)
+	checkResp, err := c.doJSONBody("PATCH", checkPath, envelope)
 	if err != nil {
 		return nil, fmt.Errorf("checking extension: %w", err)
 	}
 
+	if checkResponse, ok := checkResp["response"].(map[string]interface{}); ok {
+		if success, _ := checkResponse["success"].(bool); !success {
+			msg := "extension check failed"
+			if br, ok := checkResponse["bookingrules"].(map[string]interface{}); ok {
+				if issues, ok := br["issues"].([]interface{}); ok && len(issues) > 0 {
+					if issue, ok := issues[0].(map[string]interface{}); ok {
+						if text, ok := issue["text"].(string); ok {
+							msg = text
+						}
+					}
+				}
+			}
+			log.Printf("[asimut] extend: check rejected: %s", msg)
+			return nil, fmt.Errorf("%s", msg)
+		}
+	}
+
 	// Save extension
 	savePath := fmt.Sprintf("/services/v2/event/event_id=%d;type=save", eventID)
-	_, err = c.doJSONBody("PATCH", savePath, envelope)
+	saveResp, err := c.doJSONBody("PATCH", savePath, envelope)
 	if err != nil {
 		return nil, fmt.Errorf("saving extension: %w", err)
 	}
 
+	if saveResponse, ok := saveResp["response"].(map[string]interface{}); ok {
+		if success, _ := saveResponse["success"].(bool); !success {
+			msg := "extension save rejected"
+			if br, ok := saveResponse["bookingrules"].(map[string]interface{}); ok {
+				if issues, ok := br["issues"].([]interface{}); ok && len(issues) > 0 {
+					if issue, ok := issues[0].(map[string]interface{}); ok {
+						if text, ok := issue["text"].(string); ok {
+							msg = text
+						}
+					}
+				}
+			}
+			log.Printf("[asimut] extend: save rejected: %s", msg)
+			return nil, fmt.Errorf("%s", msg)
+		}
+	}
+
+	log.Printf("[asimut] extend: event %d extended to %s", eventID, newEnd.Format(timeFormat))
 	return &BookingResult{
 		EventID: eventID,
 		Success: true,
@@ -495,6 +538,14 @@ func boolFromInterface(v interface{}) bool {
 		return b
 	}
 	return false
+}
+
+func keys(m map[string]interface{}) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
 }
 
 // cleanNils recursively removes nil values from maps and slices.

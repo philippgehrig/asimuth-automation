@@ -169,11 +169,14 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 	// Extend in 15-minute increments up to desired duration
 	totalMinutes := 30
 	desiredMinutes := wish.DurationMinutes
+	log.Printf("booking %s: initial 30min booked (event %d), extending to %d min", id, eventID, desiredMinutes)
 
 	for totalMinutes < desiredMinutes {
 		newEnd := end.Add(15 * time.Minute)
+		log.Printf("booking %s: extending event %d to %s (%d -> %d min)", id, eventID, newEnd.Format("15:04"), totalMinutes, totalMinutes+15)
 		_, err := s.asimut.ExtendBooking(eventID, newEnd)
 		if err != nil {
+			log.Printf("booking %s: extension failed at %d min: %v", id, totalMinutes+15, err)
 			break
 		}
 		end = newEnd
