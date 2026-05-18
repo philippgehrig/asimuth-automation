@@ -178,28 +178,38 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 	}
 
 	// Extend in 15-minute increments up to desired duration.
-	// Wait 20 minutes before the first extension (horizon needs to advance),
-	// then 15 minutes between subsequent extensions.
+	// Extensions are scheduled at fixed absolute times relative to the trigger time:
+	//   trigger = slot_start - 47h30m (i.e. slot_start - 48h + 30min)
+	//   1st extension at trigger + 20min
+	//   subsequent extensions every 15min after that
 	totalMinutes := 30
 	desiredMinutes := wish.DurationMinutes
 	extensionCount := 0
-	log.Printf("booking %s: initial 30min booked (event %d, room %s), extending to %d min",
-		id, eventID, bookedRoom, desiredMinutes)
+	triggerTime := start.Add(-48*time.Hour + 30*time.Minute)
+	log.Printf("booking %s: initial 30min booked (event %d, room %s), extending to %d min (trigger=%s)",
+		id, eventID, bookedRoom, desiredMinutes, triggerTime.Format("15:04:05"))
 
 	for totalMinutes < desiredMinutes {
 		newEnd := end.Add(15 * time.Minute)
 
-		// First extension waits 20 min, subsequent ones wait 15 min
-		var waitDuration time.Duration
+		// Compute the absolute target time for this extension
+		var targetTime time.Time
 		if extensionCount == 0 {
-			waitDuration = 20 * time.Minute
+			targetTime = triggerTime.Add(20 * time.Minute)
 		} else {
-			waitDuration = 15 * time.Minute
+			targetTime = triggerTime.Add(20*time.Minute + time.Duration(extensionCount)*15*time.Minute)
 		}
 
-		log.Printf("booking %s: waiting %v before extension #%d to %s (current now = %s)",
-			id, waitDuration, extensionCount+1, newEnd.Format("15:04"), time.Now().In(loc).Format("15:04:05"))
-		time.Sleep(waitDuration)
+		waitDuration := time.Until(targetTime)
+		if waitDuration > 0 {
+			log.Printf("booking %s: sleeping until %s (%v) before extension #%d to %s (current now = %s)",
+				id, targetTime.Format("15:04:05"), waitDuration.Round(time.Second),
+				extensionCount+1, newEnd.Format("15:04"), time.Now().In(loc).Format("15:04:05"))
+			time.Sleep(waitDuration)
+		} else {
+			log.Printf("booking %s: target time %s already passed, proceeding with extension #%d to %s (current now = %s)",
+				id, targetTime.Format("15:04:05"), extensionCount+1, newEnd.Format("15:04"), time.Now().In(loc).Format("15:04:05"))
+		}
 		log.Printf("booking %s: wait complete, now = %s, attempting extension", id, time.Now().In(loc).Format("15:04:05"))
 
 		// Re-login before extension to ensure fresh session after wait
