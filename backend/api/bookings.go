@@ -178,43 +178,37 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 	}
 
 	// Extend in 15-minute increments up to desired duration.
-	// The booking horizon is now+48h, so we must wait for it to advance
-	// before each extension beyond the initial 30 minutes.
+	// Wait 20 minutes before the first extension (horizon needs to advance),
+	// then 15 minutes between subsequent extensions.
 	totalMinutes := 30
 	desiredMinutes := wish.DurationMinutes
+	extensionCount := 0
 	log.Printf("booking %s: initial 30min booked (event %d, room %s), extending to %d min",
 		id, eventID, bookedRoom, desiredMinutes)
 
 	for totalMinutes < desiredMinutes {
 		newEnd := end.Add(15 * time.Minute)
 
-		// The horizon is now+48h. To extend to newEnd, we need now+48h >= newEnd,
-		// i.e., now >= newEnd - 48h. Wait until that time plus a small buffer.
-		requiredNow := newEnd.Add(-48 * time.Hour)
-		waitDuration := time.Until(requiredNow)
-
-		if waitDuration > 0 {
-			// Add 30-second buffer to ensure horizon has advanced past our target
-			waitDuration += 30 * time.Second
-			log.Printf("booking %s: waiting %v for horizon to allow extension to %s (need now >= %s, current now = %s)",
-				id, waitDuration.Round(time.Second), newEnd.Format("15:04"),
-				requiredNow.Format("15:04:05"), time.Now().In(loc).Format("15:04:05"))
-			time.Sleep(waitDuration)
-			log.Printf("booking %s: wait complete, now = %s, attempting extension", id, time.Now().In(loc).Format("15:04:05"))
+		// First extension waits 20 min, subsequent ones wait 15 min
+		var waitDuration time.Duration
+		if extensionCount == 0 {
+			waitDuration = 20 * time.Minute
 		} else {
-			log.Printf("booking %s: horizon already allows extension to %s (needed now >= %s, current now = %s)",
-				id, newEnd.Format("15:04"), requiredNow.Format("15:04:05"), time.Now().In(loc).Format("15:04:05"))
+			waitDuration = 15 * time.Minute
 		}
 
-		// Re-login before extension to ensure fresh session after long wait
-		if waitDuration > 5*time.Minute {
-			log.Printf("booking %s: re-login after long wait", id)
-			if err := s.asimut.Login(); err != nil {
-				log.Printf("booking %s: re-login failed: %v, stopping extensions", id, err)
-				break
-			}
-			log.Printf("booking %s: re-login successful", id)
+		log.Printf("booking %s: waiting %v before extension #%d to %s (current now = %s)",
+			id, waitDuration, extensionCount+1, newEnd.Format("15:04"), time.Now().In(loc).Format("15:04:05"))
+		time.Sleep(waitDuration)
+		log.Printf("booking %s: wait complete, now = %s, attempting extension", id, time.Now().In(loc).Format("15:04:05"))
+
+		// Re-login before extension to ensure fresh session after wait
+		log.Printf("booking %s: re-login before extension", id)
+		if err := s.asimut.Login(); err != nil {
+			log.Printf("booking %s: re-login failed: %v, stopping extensions", id, err)
+			break
 		}
+		log.Printf("booking %s: re-login successful", id)
 
 		log.Printf("booking %s: extending event %d to %s (%d -> %d min)",
 			id, eventID, newEnd.Format("15:04"), totalMinutes, totalMinutes+15)
@@ -237,6 +231,7 @@ func (s *Server) executeBooking(id string, wish db.BookingWish) {
 		}
 		end = newEnd
 		totalMinutes += 15
+		extensionCount++
 		log.Printf("booking %s: extension successful, total duration now %d min", id, totalMinutes)
 	}
 
